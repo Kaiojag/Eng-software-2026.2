@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dilema Ético — Engenharia de Software I</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #0d0f10;
+    --card: #17191b;
+    --card-hover: #1e2123;
+    --ink: #e9e5da;
+    --muted: #8b8f93;
+    --line: #2a2d30;
+    --amber: #e0a83f;
+    --amber-fill: #241c0c;
+    --amber-line: #5c481c;
+    --glow: rgba(224,168,63,0.18);
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body { height: 100%; }
+
+  body {
+    margin: 0;
+    background:
+      radial-gradient(ellipse 900px 600px at 50% -10%, #17191b 0%, var(--bg) 60%),
+      var(--bg);
+    color: var(--ink);
+    font-family: Georgia, 'Times New Roman', serif;
+    line-height: 1.65;
+  }
+
+  .mono {
+    font-family: 'Courier New', Courier, monospace;
+  }
+
+  /* ---- step tracker ---- */
+  .tracker {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    background: rgba(13,15,16,0.92);
+    backdrop-filter: blur(6px);
+    border-bottom: 1px solid var(--line);
+    padding: 18px 24px;
+  }
+
+  .tracker-row {
+    max-width: 640px;
+    margin: 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: relative;
+  }
+
+  .tracker-row::before {
+    content: '';
+    position: absolute;
+    left: 12px; right: 12px; top: 6px;
+    height: 1px;
+    background: var(--line);
+    z-index: 0;
+  }
+
+  .step {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    flex: 1;
+  }
+
+  .dot {
+    width: 13px; height: 13px;
+    border-radius: 50%;
+    border: 1.5px solid var(--muted);
+    background: var(--bg);
+    transition: all 0.3s ease;
+  }
+
+  .step.done .dot { background: var(--amber); border-color: var(--amber); }
+  .step.current .dot { border-color: var(--amber); box-shadow: 0 0 0 4px var(--glow); }
+
+  .step-label {
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 10px;
+    letter-spacing: 0.5px;
+    color: var(--muted);
+    text-align: center;
+  }
+
+  .step.current .step-label, .step.done .step-label { color: var(--amber); }
+
+  /* ---- layout ---- */
+  .wrap {
+    max-width: 640px;
+    margin: 0 auto;
+    padding: 56px 24px 90px;
+  }
+
+  .screen { display: none; }
+  .screen.active { display: block; animation: fade 0.4s ease; }
+
+  @keyframes fade {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .case-tag {
+    display: inline-block;
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 11px;
+    letter-spacing: 1.5px;
+    color: var(--amber);
+    border: 1px solid var(--amber-line);
+    background: var(--amber-fill);
+    padding: 4px 10px;
+    border-radius: 2px;
+    margin-bottom: 18px;
+  }
+
+  h1 {
+    font-size: 32px;
+    line-height: 1.25;
+    margin: 0 0 20px;
+    font-weight: 700;
+    color: var(--ink);
+  }
+
+  h2 {
+    font-size: 23px;
+    line-height: 1.3;
+    margin: 0 0 18px;
+    font-weight: 700;
+    color: var(--ink);
+  }
+
+  p, .choice, .callout p, textarea {
+    text-align: justify;
+  }
+
+  p { margin: 0 0 16px; font-size: 17px; color: var(--ink); }
+  p em { color: var(--amber); font-style: italic; }
+
+  .rule {
+    border: none;
+    border-top: 1px solid var(--line);
+    margin: 30px 0;
+  }
+
+  label {
+    display: block;
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 12px;
+    letter-spacing: 0.5px;
+    color: var(--muted);
+    margin-bottom: 10px;
+  }
+
+  input[type="text"], textarea {
+    width: 100%;
+    font-family: Georgia, 'Times New Roman', serif;
+    font-size: 16px;
+    padding: 14px 16px;
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    background: var(--card);
+    color: var(--ink);
+  }
+
+  textarea { min-height: 170px; resize: vertical; }
+
+  input[type="text"]:focus, textarea:focus {
+    outline: none;
+    border-color: var(--amber);
+    box-shadow: 0 0 0 3px var(--glow);
+  }
+
+  .charcount {
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 11.5px;
+    color: var(--muted);
+    margin-top: 8px;
+    text-align: right;
+  }
+
+  .btn {
+    display: inline-block;
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    padding: 13px 24px;
+    border: 1.5px solid var(--amber);
+    border-radius: 4px;
+    background: var(--amber);
+    color: #1a1406;
+    cursor: pointer;
+    text-align: left;
+  }
+
+  .btn:disabled { opacity: 0.3; cursor: not-allowed; }
+  .btn:not(:disabled):hover { filter: brightness(1.1); box-shadow: 0 0 0 4px var(--glow); }
+
+  .btn-outline {
+    background: transparent;
+    color: var(--ink);
+    border-color: var(--line);
+  }
+  .btn-outline:not(:disabled):hover { border-color: var(--amber); box-shadow: none; filter: none; }
+
+  .choice {
+    position: relative;
+    display: block;
+    width: 100%;
+    text-align: justify;
+    font-family: Georgia, 'Times New Roman', serif;
+    font-size: 16px;
+    padding: 16px 18px 16px 46px;
+    margin-bottom: 12px;
+    border: 1px solid var(--line);
+    border-left: 3px solid var(--muted);
+    border-radius: 3px;
+    background: var(--card);
+    color: var(--ink);
+    cursor: pointer;
+    line-height: 1.55;
+    transition: all 0.2s ease;
+  }
+
+  .choice .opt-num {
+    position: absolute;
+    left: 16px; top: 16px;
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 12px;
+    color: var(--amber);
+  }
+
+  .choice:hover {
+    background: var(--card-hover);
+    border-left-color: var(--amber);
+    transform: translateX(2px);
+    box-shadow: 0 4px 16px rgba(0,0,0,0.35);
+  }
+
+  .callout {
+    background: var(--amber-fill);
+    border: 1px solid var(--amber-line);
+    border-left: 3px solid var(--amber);
+    border-radius: 3px;
+    padding: 16px 18px;
+    margin: 18px 0 26px;
+  }
+
+  .callout .label {
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--amber);
+    letter-spacing: 0.8px;
+    margin-bottom: 8px;
+  }
+
+  .callout p { margin: 0; font-size: 15.5px; color: var(--ink); }
+
+  .actions { margin-top: 32px; display: flex; gap: 12px; flex-wrap: wrap; }
+
+  .footer-note {
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 11.5px;
+    color: var(--muted);
+    margin-top: 44px;
+    line-height: 1.7;
+  }
+</style>
+</head>
+<body>
+
+<div class="tracker">
+  <div class="tracker-row" id="trackerRow">
+    <div class="step" data-i="0"><div class="dot"></div><div class="step-label">INÍCIO</div></div>
+    <div class="step" data-i="1"><div class="dot"></div><div class="step-label">DECISÃO 1</div></div>
+    <div class="step" data-i="2"><div class="dot"></div><div class="step-label">DECISÃO 2</div></div>
+    <div class="step" data-i="3"><div class="dot"></div><div class="step-label">DECISÃO 3</div></div>
+    <div class="step" data-i="4"><div class="dot"></div><div class="step-label">DECISÃO 4</div></div>
+    <div class="step" data-i="5"><div class="dot"></div><div class="step-label">REFLEXÃO</div></div>
+  </div>
+</div>
+
+<div class="wrap">
+
+  <!-- SCREEN 0 -->
+  <div class="screen active" id="screen-0">
+    <span class="case-tag">CASO Nº 2026-ES1 · CONFIDENCIAL</span>
+    <h1>Um dia antes do lançamento</h1>
+    <p>Você está prestes a viver uma decisão que engenheiros de software enfrentam com mais frequência do que se imagina. Não existe uma resposta certa esperando para ser marcada, existe um caminho que você escolhe, decisão após decisão, e as consequências desse caminho.</p>
+    <p>Ao todo são três decisões. No final, vamos te pedir uma reflexão curta sobre o que você viveu aqui. Leve o cenário a sério, mas fique à vontade, é uma simulação, o único objetivo é pensar.</p>
+    <hr class="rule">
+    <label for="nameInput">Antes de abrir o caso, como você se chama?</label>
+    <input type="text" id="nameInput" placeholder="Nome completo">
+    <div class="actions">
+      <button class="btn" id="startBtn" disabled onclick="advanceTo(1)">Abrir o caso</button>
+    </div>
+  </div>
+
+  <!-- SCREEN 1: decisão 1 -->
+  <div class="screen" id="screen-1">
+    <span class="case-tag">REGISTRO 01</span>
+    <h2>A falha</h2>
+    <p>Você é engenheiro ou engenheira de software numa equipe que está prestes a lançar um sistema de prontuários eletrônicos para uma rede de clínicas. Faltando um dia para o lançamento, durante um teste de última hora, você descobre uma falha grave: qualquer usuário autenticado, até um recepcionista, consegue acessar o histórico médico completo de qualquer paciente, sem nenhuma restrição de permissão.</p>
+    <p>Você reporta ao seu gestor. Ele responde: <em>"Não dá tempo de corrigir isso sem atrasar o lançamento. O cliente já está esperando. Vamos lançar assim mesmo e corrigimos na próxima versão."</em></p>
+    <hr class="rule">
+    <p><strong>O que você faz?</strong></p>
+    <div id="opts-1"></div>
+  </div>
+
+  <!-- SCREEN 2: decisão 2 -->
+  <div class="screen" id="screen-2">
+    <span class="case-tag">REGISTRO 02</span>
+    <h2>A reunião de crise</h2>
+    <p>Duas semanas depois do lançamento, o risco que você identificou se concretiza: um usuário sem permissão adequada acessa o histórico médico completo de um paciente conhecido na cidade, e o caso vaza para a imprensa local. A empresa convoca uma reunião de crise, e você é chamado a participar.</p>
+    <hr class="rule">
+    <p><strong>Como você se posiciona na reunião?</strong></p>
+    <div id="opts-2"></div>
+  </div>
+
+  <!-- SCREEN 3: decisão 3 -->
+  <div class="screen" id="screen-3">
+    <span class="case-tag">REGISTRO 03</span>
+    <h2>O contato da imprensa</h2>
+    <p>Um jornalista de um portal de notícias local entra em contato diretamente com você pelas redes sociais, pedindo para conversar sobre o que realmente aconteceu no vazamento. Ele diz já ter falado com o setor de comunicação da empresa, mas quer "a visão de quem trabalhou tecnicamente no projeto".</p>
+    <hr class="rule">
+    <p><strong>Como você responde?</strong></p>
+    <div id="opts-3"></div>
+  </div>
+
+  <!-- SCREEN 4: decisão 4 -->
+  <div class="screen" id="screen-4">
+    <span class="case-tag">REGISTRO 04</span>
+    <h2>O guia interno</h2>
+    <p>Passados alguns meses, a poeira baixou. A diretoria te convida para liderar a criação de um guia interno de boas práticas éticas e de segurança, para orientar os próximos projetos da empresa.</p>
+    <hr class="rule">
+    <p><strong>O que você prioriza nesse guia?</strong></p>
+    <div id="opts-4"></div>
+  </div>
+
+  <!-- SCREEN 5: recap + reflexão -->
+  <div class="screen" id="screen-5">
+    <span class="case-tag">ENCERRAMENTO DO CASO</span>
+    <h2>O caminho que você percorreu</h2>
+
+    <div class="callout"><div class="label">DECISÃO 1</div><p id="recap1"></p></div>
+    <div class="callout"><div class="label">DECISÃO 2</div><p id="recap2"></p></div>
+    <div class="callout"><div class="label">DECISÃO 3</div><p id="recap3"></p></div>
+    <div class="callout"><div class="label">DECISÃO 4</div><p id="recap4"></p></div>
+
+    <hr class="rule">
+    <p><strong>Agora, sua reflexão.</strong> Olhando para o caminho que você percorreu, o que você faria de fato, na vida real, diante desse dilema? O que mudaria em relação ao que escolheu aqui, e por quê? Cite ao menos um dos oito princípios do código de ética ACM/IEEE na sua resposta.</p>
+    <textarea id="reflectionInput" placeholder="Escreva sua reflexão aqui..." oninput="updateReflectionCount()"></textarea>
+    <div class="charcount" id="charcount">0 palavras (mínimo 60)</div>
+    <div class="actions">
+      <button class="btn" id="pdfBtn" disabled onclick="generatePDF()">Gerar PDF do caso</button>
+    </div>
+    <p class="footer-note">O PDF vai incluir seu nome, o cenário, as quatro decisões tomadas e a reflexão escrita acima. Depois de baixado, anexe o arquivo na atividade do Moodle. Esse caso só pode ser aberto uma vez neste navegador, então revise suas respostas antes de gerar o PDF.</p>
+  </div>
+
+  <!-- SCREEN LOCKED -->
+  <div class="screen" id="screen-locked">
+    <span class="case-tag">CASO ENCERRADO</span>
+    <h1>Esse caso já foi registrado</h1>
+    <p id="lockedInfo"></p>
+    <p>Cada caso pode ser aberto e decidido uma única vez neste navegador. Se você já baixou o PDF, é só anexá-lo na atividade do Moodle. Se precisar de uma segunda tentativa por algum motivo legítimo (erro técnico, por exemplo), fale com o professor.</p>
+    <hr class="rule">
+    <div class="actions">
+      <button class="btn" onclick="generatePDF()">Baixar o PDF novamente</button>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  const state = { name: '', c1: null, c2: null, c3: null, c4: null, reflection: '' };
+
+  const options = {
+    1: [
+      { label: 'Aceitar a decisão do gestor e seguir com o lançamento sem insistir mais.',
+        commentary: 'Essa escolha prioriza o cronograma e a relação com o empregador, mas entra em conflito direto com o princípio "Público" do código de ética, que coloca o interesse público acima de qualquer outro, inclusive do empregador.' },
+      { label: 'Insistir com o gestor, propondo adiar o lançamento até a falha ser corrigida.',
+        commentary: 'É a opção que melhor equilibra os princípios "Público" e "Cliente e Empregador", buscando proteger os pacientes sem simplesmente ignorar as restrições do negócio.' },
+      { label: 'Avisar diretamente o cliente sobre a falha, sem informar o gestor antes.',
+        commentary: 'Protege fortemente o princípio "Público", mas pula uma etapa de comunicação interna, entrando em tensão com "Cliente e Empregador", que também espera lealdade e alinhamento.' },
+      { label: 'Buscar a opinião de um colega mais experiente antes de decidir o que fazer.',
+        commentary: 'Reflete bem o princípio "Colegas", que pede honestidade e colaboração entre profissionais, mas ainda adia a decisão real diante de um prazo já apertado.' },
+      { label: 'Registrar formalmente sua objeção por escrito e seguir a ordem do gestor, aguardando resposta.',
+        commentary: 'Combina os princípios "Julgamento" e "Gerenciamento", preservando um registro da sua posição profissional mesmo obedecendo, por ora, à decisão superior.' }
+    ],
+    2: [
+      { label: 'Assumir publicamente que alertou sobre esse risco antes do lançamento, com documentação em mãos.',
+        commentary: 'Alinhado ao princípio "Julgamento", manter a integridade profissional mesmo sob pressão coletiva é exatamente o que o código de ética espera nesse momento.' },
+      { label: 'Culpar apenas a pressão do gestor, sem mencionar sua própria participação técnica no processo.',
+        commentary: 'Compromete os princípios "Colegas" e "Indivíduo", transferir toda a responsabilidade evita o aprendizado real e fragiliza a confiança da equipe.' },
+      { label: 'Focar apenas em apresentar a correção técnica, sem entrar na discussão sobre responsabilidades.',
+        commentary: 'Atende ao princípio "Produto", resolver o problema técnico é necessário, mas evitar a conversa sobre responsabilidade deixa o princípio "Profissão" incompleto.' },
+      { label: 'Propor, junto com a equipe, um novo processo de revisão de segurança antes de qualquer lançamento futuro.',
+        commentary: 'Uma resposta madura, que une "Profissão" e "Gerenciamento", transforma um erro pontual em melhoria estrutural para toda a organização.' },
+      { label: 'Pedir para sair do projeto, alegando que não quer mais se envolver com o caso.',
+        commentary: 'Evita o confronto, mas também evita a responsabilidade, o princípio "Indivíduo" pede justamente o oposto, aprender e continuar praticando a profissão de forma ética mesmo depois de um erro.' }
+    ],
+    3: [
+      { label: 'Conversar com o jornalista, mas só sobre aspectos técnicos gerais, sem citar nomes ou detalhes internos da empresa.',
+        commentary: 'Um meio-termo entre "Público" (mais transparência para a sociedade) e "Cliente e Empregador" (preservar informações internas sensíveis), sem comprometer nenhum dos dois por completo.' },
+      { label: 'Recusar falar e orientar o jornalista a procurar oficialmente o setor de comunicação da empresa.',
+        commentary: 'Respeita os canais institucionais, alinhado a "Cliente e Empregador" e "Gerenciamento", sem ser desonesto, apenas redireciona a conversa para quem tem mandato de falar publicamente.' },
+      { label: 'Conceder a entrevista completa, incluindo detalhes internos sobre a pressão do gestor para lançar mesmo com a falha.',
+        commentary: 'Reforça fortemente o princípio "Público", mas expõe informações internas sem nenhum processo prévio, um risco real ao princípio "Cliente e Empregador" e à sua própria posição na empresa.' },
+      { label: 'Ignorar a mensagem do jornalista por completo, sem responder nada.',
+        commentary: 'Evita o risco imediato, mas também evita a chance de contribuir para uma cobertura mais precisa dos fatos, algo que o princípio "Indivíduo" pede indiretamente de todo profissional.' },
+      { label: 'Responder ao jornalista sugerindo falar somente depois de avisar formalmente seu gestor sobre o contato recebido.',
+        commentary: 'Uma resposta equilibrada entre "Julgamento" e "Gerenciamento", mantém transparência interna antes de qualquer exposição externa, sem fechar a porta para conversar depois.' }
+    ],
+    4: [
+      { label: 'Focar o guia num checklist técnico de segurança, sem entrar em processos de decisão ética.',
+        commentary: 'Fortalece o princípio "Produto", mas deixa de fora justamente o tipo de situação que você viveu, decisões sob pressão que um checklist técnico sozinho não resolve.' },
+      { label: 'Criar um canal formal e seguro para reportar preocupações éticas, com proteção contra retaliação.',
+        commentary: 'Responde diretamente aos princípios "Público" e "Gerenciamento", dando à próxima pessoa na sua posição um caminho mais claro do que você teve.' },
+      { label: 'Basear o guia inteiramente nos oito princípios do código de ética ACM/IEEE, adaptados à realidade da empresa.',
+        commentary: 'Reforça o princípio "Profissão", aproximar a prática cotidiana da equipe de um padrão internacional reconhecido dá legitimidade e clareza ao guia.' },
+      { label: 'Manter o guia propositalmente genérico, para não engessar decisões futuras da equipe.',
+        commentary: 'Um guia vago tende a repetir o problema original, ambiguidade sob pressão, e enfraquece o princípio "Gerenciamento", que pede uma abordagem ética explícita, não implícita.' },
+      { label: 'Envolver toda a equipe, não só a liderança, na elaboração do guia.',
+        commentary: 'Reflete os princípios "Colegas" e "Indivíduo", um código vivido de verdade nasce de quem vai segui-lo todos os dias, não só de quem manda.' }
+    ]
+  };
+
+  function renderOptions(step) {
+    const container = document.getElementById('opts-' + step);
+    container.innerHTML = '';
+    options[step].forEach((opt, i) => {
+      const btn = document.createElement('button');
+      btn.className = 'choice';
+      btn.innerHTML = '<span class="opt-num mono">' + (i + 1) + '/5</span>' + opt.label;
+      btn.onclick = () => chooseOption(step, opt);
+      container.appendChild(btn);
+    });
+  }
+  [1, 2, 3, 4].forEach(renderOptions);
+
+  function updateTracker(n) {
+    document.querySelectorAll('.step').forEach(el => {
+      const i = parseInt(el.dataset.i, 10);
+      el.classList.toggle('done', i < n);
+      el.classList.toggle('current', i === n);
+    });
+  }
+
+  function advanceTo(n) {
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    document.getElementById('screen-' + n).classList.add('active');
+    updateTracker(n);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  document.getElementById('nameInput').addEventListener('input', function (e) {
+    state.name = e.target.value.trim();
+    document.getElementById('startBtn').disabled = state.name.length < 3;
+  });
+
+  function chooseOption(step, opt) {
+    state['c' + step] = opt;
+    if (step < 4) {
+      advanceTo(step + 1);
+    } else {
+      document.getElementById('recap1').textContent = state.c1.label + ' ' + state.c1.commentary;
+      document.getElementById('recap2').textContent = state.c2.label + ' ' + state.c2.commentary;
+      document.getElementById('recap3').textContent = state.c3.label + ' ' + state.c3.commentary;
+      document.getElementById('recap4').textContent = state.c4.label + ' ' + state.c4.commentary;
+      advanceTo(5);
+    }
+  }
+
+  function updateReflectionCount() {
+    const text = document.getElementById('reflectionInput').value.trim();
+    const words = text.length ? text.split(/\s+/).length : 0;
+    document.getElementById('charcount').textContent = words + ' palavras (mínimo 60)';
+    state.reflection = text;
+    document.getElementById('pdfBtn').disabled = words < 60;
+  }
+
+  function generatePDF() {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ unit: 'pt', format: 'a4' });
+    const marginX = 56;
+    let y = 64;
+    const maxWidth = 483;
+
+    // Justifica cada linha (exceto a última de cada parágrafo) distribuindo o
+    // espaço extra entre as palavras, como um texto justificado de verdade.
+    function addJustified(text, size, bold, gap) {
+      doc.setFontSize(size);
+      doc.setFont('helvetica', bold ? 'bold' : 'normal');
+      const lines = doc.splitTextToSize(text, maxWidth);
+      const spaceWidth = doc.getTextWidth(' ');
+
+      lines.forEach((line, idx) => {
+        if (y > 780) { doc.addPage(); y = 64; }
+        const isLastLine = idx === lines.length - 1;
+        const words = line.split(' ').filter(w => w.length);
+
+        if (isLastLine || words.length <= 1) {
+          doc.text(line, marginX, y);
+        } else {
+          const wordsWidth = words.reduce((sum, w) => sum + doc.getTextWidth(w), 0);
+          const gaps = words.length - 1;
+          const extra = Math.max(0, maxWidth - wordsWidth - spaceWidth * gaps);
+          const gapWidth = spaceWidth + extra / gaps;
+          let x = marginX;
+          words.forEach((w, wi) => {
+            doc.text(w, x, y);
+            x += doc.getTextWidth(w) + gapWidth;
+          });
+        }
+        y += size * 1.35;
+      });
+      y += gap;
+    }
+
+    addJustified('Ética na Engenharia de Software · Caso Nº 2026-ES1', 12, false, 4);
+    addJustified('Dilema Ético — Registro de Atividade', 18, true, 10);
+    addJustified('Aluno(a): ' + state.name, 11, false, 2);
+    addJustified('Data: ' + new Date().toLocaleDateString('pt-BR'), 11, false, 16);
+
+    addJustified('O cenário', 13, true, 4);
+    addJustified('Um dia antes do lançamento de um sistema de prontuários eletrônicos, foi descoberta uma falha grave de segurança que expunha dados médicos de pacientes. O gestor orientou lançar o sistema mesmo assim.', 11, false, 14);
+
+    addJustified('Decisão 1 — a falha', 13, true, 4);
+    addJustified(state.c1.label + ' ' + state.c1.commentary, 11, false, 14);
+
+    addJustified('Decisão 2 — a reunião de crise', 13, true, 4);
+    addJustified(state.c2.label + ' ' + state.c2.commentary, 11, false, 14);
+
+    addJustified('Decisão 3 — o contato da imprensa', 13, true, 4);
+    addJustified(state.c3.label + ' ' + state.c3.commentary, 11, false, 14);
+
+    addJustified('Decisão 4 — o guia interno', 13, true, 4);
+    addJustified(state.c4.label + ' ' + state.c4.commentary, 11, false, 14);
+
+    addJustified('Reflexão do aluno', 13, true, 4);
+    addJustified(state.reflection, 11, false, 4);
+
+    const safeName = state.name.replace(/[^a-zA-Z0-9]+/g, '-').toLowerCase();
+    doc.save('dilema-etico-' + safeName + '.pdf');
+
+    state.completedAt = new Date().toLocaleString('pt-BR');
+    localStorage.setItem('es1_dilema_done', JSON.stringify(state));
+    lockPage();
+  }
+
+  function lockPage() {
+    document.querySelector('.tracker').style.display = 'none';
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    document.getElementById('screen-locked').classList.add('active');
+    document.getElementById('lockedInfo').textContent =
+      'Registrado por ' + state.name + ' em ' + state.completedAt + '.';
+    window.scrollTo(0, 0);
+  }
+
+  // Se este navegador já concluiu o caso antes, trava direto na tela final,
+  // sem permitir refazer as decisões.
+  (function checkExistingCase() {
+    const saved = localStorage.getItem('es1_dilema_done');
+    if (saved) {
+      Object.assign(state, JSON.parse(saved));
+      lockPage();
+    }
+  })();
+</script>
+
+</body>
+</html>
